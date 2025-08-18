@@ -1,0 +1,11 @@
+C:\Users\surya\Desktop\New\kazilen\backend\Kazilen\src\main\java\com\yourcompany\Kazilen\auth\AuthController.java
+C:\Users\surya\Desktop\New\kazilen\backend\Kazilen\src\main\java\com\yourcompany\Kazilen\auth\dto\AuthResponseDto.java
+C:\Users\surya\Desktop\New\kazilen\backend\Kazilen\src\main\java\com\yourcompany\Kazilen\auth\dto\OtpRequestDto.java
+C:\Users\surya\Desktop\New\kazilen\backend\Kazilen\src\main\java\com\yourcompany\Kazilen\auth\dto\OtpVerifyDto.java
+C:\Users\surya\Desktop\New\kazilen\backend\Kazilen\src\main\java\com\yourcompany\Kazilen\auth\OtpService.java
+C:\Users\surya\Desktop\New\kazilen\backend\Kazilen\src\main\java\com\yourcompany\Kazilen\config\CorsConfig.java
+C:\Users\surya\Desktop\New\kazilen\backend\Kazilen\src\main\java\com\yourcompany\Kazilen\KazilenApplication.java
+C:\Users\surya\Desktop\New\kazilen\backend\Kazilen\src\main\java\com\yourcompany\Kazilen\otp\OtpCode.java
+C:\Users\surya\Desktop\New\kazilen\backend\Kazilen\src\main\java\com\yourcompany\Kazilen\otp\OtpCodeRepository.java
+C:\Users\surya\Desktop\New\kazilen\backend\Kazilen\src\main\java\com\yourcompany\Kazilen\user\User.java
+C:\Users\surya\Desktop\New\kazilen\backend\Kazilen\src\main\java\com\yourcompany\Kazilen\user\UserRepository.java
