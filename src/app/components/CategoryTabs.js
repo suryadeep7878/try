@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 
 const categories = [
-  { name: 'All Services', image: '/categories/All_services.png' },
   { name: 'Vehicle repair', image: '/categories/Vehicle repair.png'},
   { name: 'Healthcare', image: '/categories/Healthcare.png' },
   { name: 'Carpenter', image: '/categories/Carpanter repair or install.png' },
@@ -13,14 +12,13 @@ const categories = [
   { name: 'Home Cleaning', image: '/categories/Home cleaning.png' },
 ]
 
-export default function CategoryTabs({ value = 'All Services', onChange }) {
+export default function CategoryTabs({ value = '', onChange }) {
   const [active, setActive] = useState(value)
   const [stuck, setStuck] = useState(false)
   const barRef = useRef(null)
 
   useEffect(() => setActive(value), [value])
 
-  // Add header-like styling once it sticks to the top
   useEffect(() => {
     if (!barRef.current) return
     const el = barRef.current
@@ -38,7 +36,10 @@ export default function CategoryTabs({ value = 'All Services', onChange }) {
     el.prepend(sentinel)
     io.observe(sentinel)
 
-    return () => { io.disconnect(); sentinel.remove() }
+    return () => {
+      io.disconnect()
+      sentinel.remove()
+    }
   }, [])
 
   const handleClick = (name) => {
@@ -78,7 +79,11 @@ export default function CategoryTabs({ value = 'All Services', onChange }) {
                   height={55}
                   className="rounded-full"
                 />
-                <span className={`text-xs mt-1 ${isActive ? 'text-pink-600 font-semibold' : 'text-gray-500'}`}>
+                <span
+                  className={`text-xs mt-1 ${
+                    isActive ? 'text-pink-600 font-semibold' : 'text-gray-500'
+                  }`}
+                >
                   {category.name}
                 </span>
               </button>

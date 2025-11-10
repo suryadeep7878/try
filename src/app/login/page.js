@@ -1,9 +1,11 @@
+// app/login/page.js
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { requestOtp } from '../lib/api'
- // adjust path if needed
+import { checkPhone } from '../lib/api' // adjust path if your file is elsewhere
+
+const LEGACY_USER_KEYS = ['userId', 'kazilen_user_id', 'kazilen_userId', 'kazilen_user_id_v2']
 
 export default function LoginPage() {
   const router = useRouter()
@@ -12,17 +14,48 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const modalRef = useRef(null)
 
+  const clearSavedUserKeys = () => {
+    for (const k of LEGACY_USER_KEYS) localStorage.removeItem(k)
+  }
+
   const handleContinue = async () => {
     if (!/^\d{10}$/.test(phone)) {
       alert('Please enter a valid 10-digit mobile number')
       return
     }
+
     try {
       setLoading(true)
-      await requestOtp(phone)
-      router.push(`/verify?phone=${phone}`)
+
+      // If the phone typed is different from a previously saved phone,
+      // clear any stored userId so we don't reuse stale user data.
+      const savedPhone = localStorage.getItem('kazilen_user_phone')
+      if (savedPhone && savedPhone !== phone) {
+        console.log('Phone changed; clearing stale userId keys.')
+        clearSavedUserKeys()
+      }
+
+      const result = await checkPhone(phone)
+
+      // Always save phone locally so other pages can look it up
+      localStorage.setItem('kazilen_user_phone', phone)
+
+      if (result?.exists) {
+        // If backend returned userId, save it under both legacy and canonical keys
+        if (result.userId) {
+          localStorage.setItem('kazilen_user_id', String(result.userId))
+          // canonical key used by many components
+          localStorage.setItem('userId', String(result.userId))
+        }
+
+        // navigate to home (or profile)
+        router.push('/')
+      } else {
+        // not found -> go to create-account with phone prefilled
+        router.push(`/create-account?phone=${encodeURIComponent(phone)}`)
+      }
     } catch (e) {
-      alert(`Failed to send OTP: ${e.message}`)
+      alert(`Failed to check phone: ${e?.message ?? e}`)
     } finally {
       setLoading(false)
     }
@@ -56,6 +89,8 @@ export default function LoginPage() {
         <label className="block text-sm text-black mb-1">Enter mobile number</label>
         <input
           type="tel"
+          inputMode="numeric"
+          pattern="\d*"
           placeholder="9876543210"
           value={phone}
           onChange={handlePhoneInput}
@@ -69,7 +104,23 @@ export default function LoginPage() {
             loading ? 'opacity-70 cursor-not-allowed' : 'hover:bg-yellow-500'
           }`}
         >
-          {loading ? 'Sending OTP…' : 'Continue'}
+          {loading ? 'Checking…' : 'Continue'}
+        </button>
+      </div>
+
+      {/* Shortcut buttons */}
+      <div className="mt-6 w-full max-w-sm flex gap-3">
+        <button
+          onClick={() => router.push('/')}
+          className="w-1/2 border border-gray-400 py-2 rounded-xl font-medium hover:bg-gray-100"
+        >
+          Login → Home
+        </button>
+        <button
+          onClick={() => router.push('/create-account')}
+          className="w-1/2 border border-gray-400 py-2 rounded-xl font-medium hover:bg-gray-100"
+        >
+          Create Account
         </button>
       </div>
 
@@ -83,11 +134,15 @@ export default function LoginPage() {
       {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex justify-center items-center">
-          <div ref={modalRef} className="bg-white rounded-xl max-w-md w-[90%] p-6 shadow-xl relative">
+          <div
+            ref={modalRef}
+            className="bg-white rounded-xl max-w-md w-[90%] p-6 shadow-xl relative"
+          >
             <h2 className="text-lg font-bold mb-3">Terms of Service</h2>
             <div className="text-sm text-gray-700 max-h-[300px] overflow-y-auto">
               <p>
-                This is a placeholder for the Terms of Service. Replace this text with your actual terms and conditions...
+                This is a placeholder for the Terms of Service. Replace this text
+                with your actual terms and conditions...
               </p>
             </div>
             <button

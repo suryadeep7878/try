@@ -1,66 +1,88 @@
-const BASE = process.env.NEXT_PUBLIC_API_URL;
+// src/app/lib/api.js
+const BASE = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/+$/, "");
+const DEFAULT_TIMEOUT_MS = 12000;
 
-async function api(path, { method = 'GET', body, headers, token } = {}) {
-  const res = await fetch(`${BASE}${path}`, {
+const buildUrl = (p) => `${BASE}${p.startsWith("/") ? p : "/" + p}`;
+
+async function _fetchWithTimeout(url, options = {}, timeoutMs = DEFAULT_TIMEOUT_MS) {
+  const ctrl = new AbortController();
+  const id = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: ctrl.signal });
+  } finally {
+    clearTimeout(id);
+  }
+}
+
+async function jsonOrNull(res) {
+  const ct = res.headers.get("content-type") || "";
+  if (!ct.includes("application/json")) return null;
+  try {
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+async function api(
+  path,
+  { method = "GET", body, headers = {}, timeoutMs = DEFAULT_TIMEOUT_MS, credentials = "include" } = {}
+) {
+  const url = buildUrl(path);
+  const finalHeaders = { ...headers };
+  let finalBody = body;
+
+  const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
+  if (body && !isFormData && typeof body === "object") {
+    finalHeaders["Content-Type"] = "application/json";
+    finalBody = JSON.stringify(body);
+  }
+  if (isFormData || method === "GET") {
+    delete finalHeaders["Content-Type"];
+  }
+
+  const fetchOptions = {
     method,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...headers,
-    },
-    body: body ? JSON.stringify(body) : undefined,
-    credentials: 'include',
-    cache: 'no-store',
-  });
+    headers: finalHeaders,
+    body: finalBody,
+    credentials,
+    cache: "no-store",
+  };
+
+  const res = await _fetchWithTimeout(url, fetchOptions, timeoutMs);
 
   if (!res.ok) {
-    let msg = `${res.status} ${res.statusText}`;
-    try {
-      const data = await res.json();
-      if (data?.message) msg = data.message;
-    } catch {}
-    throw new Error(msg);
+    const data = await jsonOrNull(res);
+    const msg = data?.message || data?.error || `${res.status} ${res.statusText}`;
+    const err = new Error(msg);
+    err.status = res.status;
+    err.data = data;
+    throw err;
   }
-  return res.status === 204 ? null : res.json();
+
+  if (res.status === 204) return null;
+  return (await jsonOrNull(res)) ?? null;
 }
 
-/** Auth APIs */
-export const requestOtp = (phone) =>
-  api('/auth/otp/request', { method: 'POST', body: { phone } });
+/* -------- Auth-lite (phone existence) -------- */
+export const checkPhone = (phone) =>
+  api("/api/v1/auth/check-phone", { method: "POST", body: { phone } });
 
-export const verifyOtp = (phone, otp) =>
-  api('/auth/otp/verify', { method: 'POST', body: { phone, otp } });
+/* -------- Users -------- */
+export const createUser = (data) => api("/api/v1/users", { method: "POST", body: data });
+export const getUser = (id) => api(`/api/v1/users/${id}`, { method: "GET" });
+export const updateUser = (id, data) => api(`/api/v1/users/${id}`, { method: "PUT", body: data });
 
-export const resendOtp = requestOtp; // same endpoint for resend
+export const uploadAvatar = async (id, file) => {
+  const form = new FormData();
+  form.append("file", file);
+  return api(`/api/v1/users/${id}/avatar`, { method: "POST", body: form });
+};
 
-/** Address APIs (when you add them later) */
-export const getAddresses = (token) =>
-  api('/addresses', { headers: { 'X-Session-Token': token } });
-export const addAddress = (data, token) =>
-  api('/addresses', { method: 'POST', body: data, headers: { 'X-Session-Token': token } });
-export const updateAddress = (id, data, token) =>
-  api(`/addresses/${id}`, { method: 'PUT', body: data, headers: { 'X-Session-Token': token } });
-export const deleteAddress = (id, token) =>
-  api(`/addresses/${id}`, { method: 'DELETE', headers: { 'X-Session-Token': token } });
-
-
-export const getProfessionals = async ({ category, lat, lng, limit = 20, offset = 0 }) => {
-  const params = new URLSearchParams({
-    category: category || 'All Services',
-    lat: String(lat),
-    lng: String(lng),
-    limit: String(limit),
-    offset: String(offset),
-  })
-  return api(`/professionals?${params.toString()}`)
-}
-
-export const getProfessionalBySlug = async (slug, lat, lng) => {
-  const params = new URLSearchParams()
-  if (lat != null && lng != null) {
-    params.set('lat', String(lat))
-    params.set('lng', String(lng))
-  }
-  const qs = params.toString()
-  return api(`/professionals/${encodeURIComponent(slug)}${qs ? `?${qs}` : ''}`)
-}
+/* -------- Addresses -------- */
+export const createAddress = (data) => api("/api/v1/addresses", { method: "POST", body: data });
+export const getAddressesByUser = (userId) =>
+  api(`/api/v1/addresses?userId=${encodeURIComponent(userId)}`, { method: "GET" });
+export const getAddressById = (id) => api(`/api/v1/addresses/${encodeURIComponent(id)}`, { method: "GET" });
+export const updateAddress = (id, data) => api(`/api/v1/addresses/${id}`, { method: "PUT", body: data });
+export const deleteAddress = (id) => api(`/api/v1/addresses/${id}`, { method: "DELETE" });

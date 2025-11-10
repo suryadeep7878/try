@@ -1,250 +1,213 @@
 'use client'
 
-import { useRef, useState, useEffect } from 'react'
-import { ArrowLeft, Pencil } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Image from 'next/image'
+import BackHeader from '../components/BackHeader' // keep this relative path if this file exists
+import { getUser, checkPhone, updateUser } from '@/app/lib/api'
 
 export default function UserProfilePage() {
   const router = useRouter()
-  const fileInputRef = useRef(null)
 
-  const initialData = {
-    name: 'Bharat Singh',
-    mobile: '9166436773',
-    email: '',
-    dob: '',
-    gender: '',
-    image: null,
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [userId, setUserId] = useState(null)
+
+  // form state
+  const [phone, setPhone] = useState('')
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [dob, setDob] = useState('')       // yyyy-mm-dd
+  const [gender, setGender] = useState('') // MALE/FEMALE/OTHER
+
+  useEffect(() => {
+    async function load() {
+      try {
+        setLoading(true)
+
+        // try saved id first
+        const savedId = localStorage.getItem('kazilen_user_id')
+        if (savedId) {
+          setUserId(savedId)
+          await fetchAndPopulate(savedId)
+          return
+        }
+
+        // fallback: try phone saved in localStorage
+        const savedPhone = localStorage.getItem('kazilen_user_phone')
+        if (savedPhone && savedPhone.match(/^\d{10}$/)) {
+          const res = await checkPhone(savedPhone)
+          if (res?.exists && res?.userId) {
+            localStorage.setItem('kazilen_user_id', String(res.userId))
+            setUserId(String(res.userId))
+            await fetchAndPopulate(res.userId)
+            return
+          } else {
+            // not found — force login
+            alert('Phone not found on server. Please login again.')
+            router.push('/login')
+            return
+          }
+        }
+
+        // nothing found — redirect to login
+        router.push('/login')
+      } catch (err) {
+        console.error('Failed to load user:', err)
+        alert('Failed to load profile. Please try again.')
+        router.push('/login')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  async function fetchAndPopulate(id) {
+    const data = await getUser(id)
+    if (!data) {
+      throw new Error('User not found')
+    }
+    setPhone(data.phone ?? '')
+    setName(data.name ?? '')
+    setEmail(data.email ?? '')
+    if (data.dob) {
+      const d = String(data.dob).split('T')[0]
+      setDob(d)
+    } else {
+      setDob('')
+    }
+    setGender(data.gender ?? '')
   }
 
-  const [image, setImage] = useState(initialData.image)
-  const [showOptions, setShowOptions] = useState(false)
-  const [name, setName] = useState(initialData.name)
-  const [mobile] = useState(initialData.mobile)
-  const [email, setEmail] = useState(initialData.email)
-  const [dob, setDob] = useState(initialData.dob)
-  const [gender, setGender] = useState(initialData.gender)
-  const [isModified, setIsModified] = useState(false)
+  const handleSave = async () => {
+    if (!userId) {
+      alert('No user id found. Please re-login.')
+      router.push('/login')
+      return
+    }
+    if (!name.trim() || !dob || !gender) {
+      alert('Please fill name, date of birth and gender.')
+      return
+    }
 
-  // detect changes to enable the Update Profile button
-  useEffect(() => {
-    const changed =
-      name !== initialData.name ||
-      email !== initialData.email ||
-      dob !== initialData.dob ||
-      gender !== initialData.gender ||
-      image !== initialData.image
-    setIsModified(changed)
-  }, [name, email, dob, gender, image])
+    try {
+      setSaving(true)
+      const payload = {
+        phone, // include phone (optional to change)
+        name: name.trim(),
+        email: email || null,
+        dob, // yyyy-mm-dd
+        gender: gender ? gender.toUpperCase() : null,
+      }
 
-  const handleFileChange = (e) => {
-    const file = e.target.files[0]
-    if (file) {
-      const imageUrl = URL.createObjectURL(file)
-      setImage(imageUrl)
-      setShowOptions(false)
+      const updated = await updateUser(userId, payload)
+      if (payload.phone) localStorage.setItem('kazilen_user_phone', payload.phone)
+      alert('Profile updated successfully.')
+      if (updated) {
+        setName(updated.name ?? name)
+        setEmail(updated.email ?? email)
+        setDob(updated.dob ?? dob)
+        setGender(updated.gender ?? gender)
+      }
+    } catch (err) {
+      console.error(err)
+      const msg = err?.message || 'Update failed'
+      alert(`Update failed: ${msg}`)
+    } finally {
+      setSaving(false)
     }
   }
 
-  const triggerGallery = () => {
-    fileInputRef.current?.click()
-  }
-
-  const handleTakePhoto = () => {
-    alert('Camera access is not supported in this demo.')
-    setShowOptions(false)
-  }
-
-  const handleDelete = () => {
-    setImage(null)
-    setShowOptions(false)
-  }
-
-  const handleChangeClick = (field) => {
-    alert(`Trigger change for ${field}`)
-  }
-
-  const handleUpdateProfile = () => {
-    // Replace this with actual API integration
-    alert('Profile updated successfully!')
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="text-gray-600">Loading profile…</div>
+      </div>
+    )
   }
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Top bar */}
-      <div className="flex items-center gap-3 p-4 shadow-sm border-b">
-        <button onClick={() => router.back()} className="text-gray-700">
-          <ArrowLeft size={20} />
-        </button>
-        <h1 className="text-lg font-semibold text-gray-800">Your Profile</h1>
-      </div>
+      <BackHeader />
 
-      {/* Profile Image */}
-      <div className="relative flex justify-center mt-6">
-        <div
-          className="w-24 h-24 rounded-full bg-orange-100 border-2 border-orange-300 flex items-center justify-center overflow-hidden"
-          onClick={() => setShowOptions(true)}
-        >
-          {image ? (
-            <Image
-              src={image}
-              alt="Profile"
-              width={96}
-              height={96}
-              className="object-cover w-full h-full"
-            />
-          ) : (
-            <span className="text-3xl font-bold text-orange-600">
-              {name.charAt(0)}
-            </span>
-          )}
+      <div className="p-4 space-y-4">
+        <h2 className="text-lg font-semibold">Your profile</h2>
+
+        {/* Phone (readonly) */}
+        <div>
+          <label className="text-xs text-gray-500">Phone</label>
+          <input
+            type="tel"
+            value={phone}
+            readOnly
+            className="w-full mt-1 px-3 py-2 border rounded-lg bg-gray-50 text-sm"
+          />
         </div>
 
-        <button
-          onClick={() => setShowOptions(true)}
-          className="absolute bottom-1 right-[calc(50%-45px)] bg-white p-1 rounded-full shadow border border-gray-200"
-        >
-          <Pencil size={14} className="text-gray-700" />
-        </button>
-
-        <input
-          type="file"
-          accept="image/*"
-          ref={fileInputRef}
-          className="hidden"
-          onChange={handleFileChange}
-        />
-      </div>
-
-      {/* Name */}
-      <div className="px-4 mt-6">
-        <fieldset className="relative border border-gray-300 rounded-lg px-3 pt-4 pb-2">
-          <legend className="text-xs px-1 text-gray-500">Name</legend>
+        {/* Name */}
+        <div>
+          <label className="text-xs text-gray-500">Name</label>
           <input
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Enter your full name"
-            className="w-full border-none bg-transparent p-0 text-sm text-gray-800 focus:outline-none"
+            className="w-full mt-1 px-3 py-2 border rounded-lg text-sm"
+            placeholder="Your full name"
           />
-        </fieldset>
-      </div>
+        </div>
 
-      {/* Mobile */}
-      <div className="px-4 mt-4">
-        <fieldset className="relative border border-gray-300 rounded-lg px-3 pt-4 pb-2">
-          <legend className="text-xs px-1 text-gray-500">Mobile</legend>
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-800">{mobile}</span>
-            <button
-              onClick={() => handleChangeClick('mobile')}
-              className="text-sm font-semibold text-red-500"
-            >
-              CHANGE
-            </button>
-          </div>
-        </fieldset>
-      </div>
+        {/* Email */}
+        <div>
+          <label className="text-xs text-gray-500">Email</label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full mt-1 px-3 py-2 border rounded-lg text-sm"
+            placeholder="you@example.com (optional)"
+          />
+        </div>
 
-      {/* Email */}
-      <div className="px-4 mt-4">
-        <fieldset className="relative border border-gray-300 rounded-lg px-3 pt-4 pb-2">
-          <legend className="text-xs px-1 text-gray-500">Email</legend>
-          <div className="flex items-center justify-between">
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Enter your email"
-              className="w-full border-none bg-transparent p-0 text-sm text-gray-800 focus:outline-none"
-            />
-            <button
-              onClick={() => handleChangeClick('email')}
-              className="text-sm font-semibold text-red-500"
-            >
-              CHANGE
-            </button>
-          </div>
-        </fieldset>
-      </div>
-
-      {/* Date of Birth */}
-      <div className="px-4 mt-4">
-        <fieldset className="relative border border-gray-300 rounded-lg px-3 pt-4 pb-2">
-          <legend className="text-xs px-1 text-gray-500">Date of birth</legend>
+        {/* DOB */}
+        <div>
+          <label className="text-xs text-gray-500">Date of birth</label>
           <input
             type="date"
             value={dob}
             onChange={(e) => setDob(e.target.value)}
-            placeholder="YYYY-MM-DD"
-            className="w-full border-none bg-transparent p-0 text-sm text-gray-800 focus:outline-none"
+            className="w-full mt-1 px-3 py-2 border rounded-lg text-sm"
           />
-        </fieldset>
-      </div>
+        </div>
 
-      {/* Gender */}
-      <div className="px-4 mt-4 mb-6">
-        <fieldset className="relative border border-gray-300 rounded-lg px-3 pt-4 pb-2">
-          <legend className="text-xs px-1 text-gray-500">Gender</legend>
+        {/* Gender */}
+        <div>
+          <label className="text-xs text-gray-500">Gender</label>
           <select
             value={gender}
             onChange={(e) => setGender(e.target.value)}
-            className="w-full border-none bg-transparent text-sm text-gray-800 focus:outline-none"
+            className="w-full mt-1 px-3 py-2 border rounded-lg text-sm"
           >
-            <option value="" disabled>
-              Select gender
-            </option>
-            <option>Male</option>
-            <option>Female</option>
-            <option>Other</option>
+            <option value="">Select</option>
+            <option value="MALE">Male</option>
+            <option value="FEMALE">Female</option>
+            <option value="OTHER">Other</option>
           </select>
-        </fieldset>
-      </div>
-
-      {/* Update Profile Button */}
-      <div className="px-4 pb-6">
-        <button
-          onClick={handleUpdateProfile}
-          disabled={!isModified}
-          className={`w-full py-3 rounded-xl font-medium ${
-            isModified
-              ? 'bg-orange-500 text-white'
-              : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-          }`}
-        >
-          Update profile
-        </button>
-      </div>
-
-      {/* Image Options Popup */}
-      {showOptions && (
-        <div
-          className="fixed inset-0 bg-black/30 z-50 flex items-end justify-center"
-          onClick={() => setShowOptions(false)}
-        >
-          <div
-            className="bg-white w-full rounded-t-2xl p-4 space-y-3"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button onClick={handleDelete} className="text-left text-red-600 w-full">
-              Delete Photo
-            </button>
-            <button onClick={triggerGallery} className="text-left w-full">
-              Choose from Gallery
-            </button>
-            <button onClick={handleTakePhoto} className="text-left w-full">
-              Take Photo
-            </button>
-            <button
-              onClick={() => setShowOptions(false)}
-              className="text-left text-gray-500 w-full"
-            >
-              Cancel
-            </button>
-          </div>
         </div>
-      )}
+
+        <div className="pt-2">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className={`w-full py-3 rounded-xl font-medium ${
+              saving ? 'bg-gray-300 text-gray-700 cursor-not-allowed' : 'bg-yellow-400 hover:bg-yellow-500 text-black'
+            }`}
+          >
+            {saving ? 'Saving…' : 'Save changes'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

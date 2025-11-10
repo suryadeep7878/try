@@ -9,20 +9,30 @@ export default function EditAddressPage() {
   const searchParams = useSearchParams()
 
   const [form, setForm] = useState({
-    label: '',
-    address: '',
+    fullName: '',
     phone: '',
-    distance: '',
+    addressLine1: '',
+    addressLine2: '',
+    landmark: '',
+    pin: '',
+    city: '',
+    state: '',
   })
 
   useEffect(() => {
-    const label = searchParams.get('label') || ''
-    const address = searchParams.get('address') || ''
-    const phone = searchParams.get('phone') || ''
-    const distance = searchParams.get('distance') || ''
-
-    setForm({ label, address, phone, distance })
-  }, [searchParams])
+    // Try to prefill fields from query params (if present).
+    // e.g. /select-address/edit?fullName=Bharat&phone=987...
+    const keys = Object.keys(form)
+    const prefills = {}
+    keys.forEach((k) => {
+      const val = searchParams.get(k)
+      if (val !== null) prefills[k] = val
+    })
+    if (Object.keys(prefills).length) {
+      setForm((prev) => ({ ...prev, ...prefills }))
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]) // form not included intentionally
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -30,9 +40,21 @@ export default function EditAddressPage() {
   }
 
   const handleSubmit = () => {
+    // Replace alert with API call to update address when backend is ready
     alert('Updated address: ' + JSON.stringify(form, null, 2))
-    router.push('/select-address') // optionally pass updated data back using context/localStorage
+    router.push('/select-address')
   }
+
+  const fields = [
+    { label: 'Full name (First and Last name)', name: 'fullName', type: 'text', placeholder: 'e.g. Bharat Singh' },
+    { label: 'Mobile Number', name: 'phone', type: 'tel', placeholder: 'e.g. 9876543210' },
+    { label: 'Flat, House no., Building, Company, Apartment', name: 'addressLine1', type: 'text', placeholder: 'e.g. IIIT NAGPUR' },
+    { label: 'Area, Street, Sector, Village', name: 'addressLine2', type: 'text', placeholder: 'e.g. near soot girni' },
+    { label: 'Landmark', name: 'landmark', type: 'text', placeholder: 'e.g. Next to MNLU college' },
+    { label: 'PIN Code', name: 'pin', type: 'text', placeholder: 'e.g. 482002' },
+    { label: 'Town/City', name: 'city', type: 'text', placeholder: 'e.g. BUTIBORI' },
+    { label: 'State', name: 'state', type: 'text', placeholder: 'e.g. Madhya Pradesh' }
+  ]
 
   return (
     <div className="min-h-screen bg-white">
@@ -44,18 +66,15 @@ export default function EditAddressPage() {
       </div>
 
       <div className="p-4 space-y-4">
-        {[
-          { label: 'Label (e.g. Home)', name: 'label' },
-          { label: 'Address', name: 'address' },
-          { label: 'Phone Number', name: 'phone' },
-          { label: 'Distance', name: 'distance' },
-        ].map((field) => (
+        {fields.map((field) => (
           <div key={field.name}>
             <label className="block text-sm text-gray-600 mb-1">{field.label}</label>
             <input
+              type={field.type}
               name={field.name}
-              value={form[field.name]}
+              value={form[field.name] ?? ''}
               onChange={handleChange}
+              placeholder={field.placeholder}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200"
             />
           </div>
